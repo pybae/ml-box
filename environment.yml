@@ -1,0 +1,5 @@
+name: ml-box
+channels:
+  - defaults
+prefix: /home/pyb/anaconda3/envs/ml-box
+

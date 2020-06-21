@@ -1,10 +1,11 @@
+#
+# Class containing base functions for Bayesian Linear Regression (BLIR)
+#
+
 import math
 import matplotlib.pyplot as plt
 import numpy as np
 
-#
-# Class containing base functions for Bayesian Linear Regression (BLIR)
-#
 
 # Returns a gaussian function for the specified mean and variance
 # variance is defined as sigma ** 2
@@ -18,21 +19,20 @@ def univariate_gaussian(mean, variance):
 def gaussian(means, covariance):
     def pdf(x):
         dim = len(x)
-        covariance_det = math.abs(np.linalg.get(covariance))
+        covariance_det = abs(np.linalg.det(covariance))
         coefficient = (1 / ((2 * math.pi) ** (dim / 2))) * \
             (1 / (covariance_det ** (1/2)))
         mean_diff = (x - means)[np.newaxis]
         exp = math.exp(
-            (-1 / 2) *
-            np.dot(np.dot(mean_diff.T, np.linalg.inv[covariance]), mean_diff))
+            (-1 / 2) * \
+            (mean_diff @ np.linalg.inv(covariance)) @ mean_diff.T)
         return coefficient * exp
-
-    return 0
+    return pdf
 
 # Returns a gaussian basis function for the specified mean and scale
 def gaussian_basis(mean, scale):
     def basis(x):
-        return math.exp((-1 * (x - mean) ** 2) / (2 * scale ** 2))
+        return math.exp((-1 * (x - mean) ** 2) / (2 * (scale ** 2)))
     return basis
 
 # Returns a design matrix given the basis functions and input vector x, which i
@@ -51,33 +51,38 @@ def blir_prior(means, covariance):
 
 # Blir posterior, given the prior means/covariance, set of new observations T, and precision parameter beta
 def blir_posterior(means, covariance, T, basis_funcs, beta):
-    theta = design_matrix(T, basis_funcs)
-    updated_covariance= np.linalg.inv(np.linalg.inv(covariance) + np.dot(beta, np.dot(theta.T, theta)))
-    updated_means = np.dot(updated_covariance,
-                           np.dot(np.linalg.inv(covariance), means) + \
-                           np.dot(beta, np.dot(theta.T, T)))
+    updated_means, updated_covariance = update_weights(means, covariance, T, basis_funcs, beta)
     return gaussian(updated_means, updated_covariance)
 
-# Blir posterior removing some terms
-def blir_posterior(means, covariance, T, basis_funcs, beta):
-    def update_func(means, covariance, T):
-        return blir_posterior(means, covariance, T, basis_funcs, beta)
+# Update weights for the BLIR posterior
+def update_weights(means, covariance, X, T, basis_funcs, beta):
+    theta = design_matrix(X, basis_funcs)
+    updated_covariance= np.linalg.inv(np.linalg.inv(covariance) + (beta * (theta.T @ theta)))
+    updated_means = updated_covariance @ \
+                           ((np.linalg.inv(covariance) @ means) + \
+                           (beta * (theta.T @ T)))
+    return (updated_means, updated_covariance)
 
 def theta(x, basis_funcs):
     return [basis(x) for basis in basis_funcs]
 
-# Returns a predictor given the Gaussian prior
-def blir_predictor(means, covariance, basis_funcs, beta):
+# Simple initial prior with 0 mean and variance dependent on alpha
+def initial_weights(n, alpha):
+    return (np.zeros(n), np.dot((1 / alpha), np.identity(n)))
+
+# returns a predictor given the Gaussian prior
+def blir_predictor(weights, covariance, basis_funcs, beta):
     def predictor(x):
-        theta = [basis(x) for x in basis_funcs]
-        mean = np.dot(means, theta)
-        variance = (1 / beta) + np.dot(np.dot(theta[np.newindex].T, covariance), theta)
-        print(mean)
-        print(variance)
-        return gaussian(mean, variance)
+        means = np.array(weights)[np.newaxis]
+        theta = np.array([basis(x) for basis in basis_funcs])[np.newaxis]
+        mean = np.dot(means, theta.T)[0][0]
+        variance = ((1 / beta) + np.dot((theta @ covariance),  theta.T))[0][0]
+        # print("mean: " + str(mean))
+        # print("variance: " + str(variance))
+        return (mean, variance)
+    return predictor
 
 # p = gaussian_basis(0, 1)
-
 
 # y = linear_regression([
 #     gaussian_basis(0, 1),
